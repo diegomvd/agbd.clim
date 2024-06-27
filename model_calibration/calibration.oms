@@ -1,0 +1,132 @@
+// Seed for the random number generator.
+val seed = Val[Int]
+
+// XGBR hyperparameters.
+val n_estimators = Val[Double]
+val e   = Val[Double]
+val md  = Val[Double]
+val mds  = Val[Double]
+val g  = Val[Double]
+val subsample = Val[Double]
+val mcw  = Val[Double]
+
+
+// Predictor selector.
+val bio1   = Val[Double]
+val bio2 = Val[Double]
+val bio3  = Val[Double]
+val bio4  = Val[Double]
+val bio5   = Val[Double]
+val bio6  = Val[Double]
+val bio7   = Val[Double]
+val bio8   = Val[Double]
+val bio9   = Val[Double]
+val bio10 = Val[Double]
+val bio11   = Val[Double]
+val bio12   = Val[Double]
+val bio13   = Val[Double]
+val bio14   = Val[Double]
+val bio15 = Val[Double]
+val bio16   = Val[Double]
+val bio17   = Val[Double]
+val bio18   = Val[Double]
+val bio19 = Val[Double]
+val gsl   = Val[Double]
+
+val error = Val[Double]
+
+// Number of predictors for a given model fit. 
+val npredictors = Val[Double]
+
+// The inner cross-validation loop takes a set of predictors and the model hyper-parameters as 
+// inputs and returns the RMSE and number of predictors as outputs. Models fitted
+// inside the inner loop are cross-validated following a spatial scheme.
+val innerCVLoop = PythonTask(
+    script = workDirectory / "inner_procedure_calibration.py",
+    //version = "3.11.0",
+    install = Seq("pip install -U scikit-learn", "pip install xgboost"),
+    libraries = Seq("pandas","numpy","scikit-learn","xgboost")
+) set (
+    resources += workDirectory / "agbd_climate_training_dataset_spatialkfolds_1000km.csv",
+    inputs += ( 
+                bio1.mapped,
+                bio2.mapped,
+                bio3.mapped,
+                bio4.mapped,
+                bio5.mapped,
+                bio6.mapped,
+                bio7.mapped,
+                bio8.mapped,
+                bio9.mapped,
+                bio10.mapped,
+                bio11.mapped,
+                bio12.mapped,
+                bio13.mapped,
+                bio14.mapped,
+                bio15.mapped,
+                bio16.mapped,
+                bio17.mapped,
+                bio18.mapped,
+                bio19.mapped,
+                gsl.mapped,
+                
+                n_estimators.mapped,
+                e.mapped,
+                md.mapped,
+                mcw.mapped,
+                mds.mapped, 
+                g.mapped, 
+                subsample.mapped,  
+                seed.mapped
+                ),
+
+    outputs += (error mapped "error",
+                npredictors mapped "npredictors")
+)
+
+val local = LocalEnvironment(8)
+// Declare an HPC environment here (https://openmole.org/Cluster.html).
+
+NSGA2Evolution(
+  evaluation = innerCVLoop,
+  parallelism = 120,
+  termination = 1000000,
+  genome = Seq(
+    
+    // Predictors.  
+    bio1 in List(0.0,1.0),
+    bio2 in List(0.0,1.0),
+    bio3 in List(0.0,1.0),
+    bio4 in List(0.0,1.0),
+    bio5 in List(0.0,1.0),
+    bio6 in List(0.0,1.0),
+    bio7 in List(0.0,1.0),
+    bio8 in List(0.0,1.0),
+    bio9 in List(0.0,1.0),
+    bio10 in List(0.0,1.0),
+    bio11 in List(0.0,1.0),
+    bio12 in List(0.0,1.0),
+    bio13 in List(0.0,1.0),
+    bio14 in List(0.0,1.0),
+    bio15 in List(0.0,1.0),
+    bio16 in List(0.0,1.0),
+    bio17 in List(0.0,1.0),
+    bio18 in List(0.0,1.0),
+    bio19 in List(0.0,1.0),
+    gsl in List(0.0,1.0),
+    
+    // XGBR hyperparameters.
+    n_estimators in (500.0,3000.0),
+    e in (0.01,0.15),
+    md in List(3.0,4.0,5.0,6.0),
+    mcw in (1.0,10.0),
+    mds in (1.0,15.0),
+    g  in (0.0,15.0),
+    subsample in (0.6,1.0)
+    
+  ),
+  
+  objective = error,
+  
+  stochastic = Stochastic(seed = seed)
+) hook (workDirectory / "/results_calibration", frequency = 100) on local // replace local by the variable name of the HPC environment (https://openmole.org/Cluster.html).
